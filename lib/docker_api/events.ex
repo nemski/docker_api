@@ -9,24 +9,26 @@ defmodule DockerApi.Events do
 
      iex> DockerApi.Events.all("127.0.0.1")
        [%{...}, ..]
-  """
-  def all(host) when is_binary(host) do
-    {:ok, %HTTPoison.AsyncResponse{id: id}} = HTTPoison.get host <> "/events", %{}, stream_to: self
-    {:ok, stream_loop([]) |> Enum.reverse }
-  end
 
-  @doc """
   Poll docker host events between since and until
 
   * if `until` is not supplied the stream will block until the timeout is reached
 
-     iex> DockerApi.Events.all("127.0.0.1", %{since: 1374067924, until: 1425227650})
+     iex> DockerApi.Events.all("127.0.0.1", query_params: %{since: 1374067924, until: 1425227650})
        [%{...}, ..]
   """
-  def all(host, opts) when is_binary(host) and is_map(opts) do
-    url = "#{host}/events?#{encode_query_params(opts)}"
+  def all(host, opts) when is_binary(host) do
+    url = url(host, opts[:query_params])
     {:ok, %HTTPoison.AsyncResponse{id: id}} = HTTPoison.get url, %{}, stream_to: self
     {:ok, stream_loop([]) |> Enum.reverse }
+  end
+
+  defp url(host, %{}) do
+    host <> "/events"
+  end
+
+  defp url(host, query_params) do
+    "#{host}/events?#{encode_query_params(opts)}"
   end
 
   defp stream_loop(acc, :done), do: acc
