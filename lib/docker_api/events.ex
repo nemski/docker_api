@@ -35,15 +35,15 @@ defmodule DockerApi.Events do
   defp stream_loop(acc, :done), do: acc
   defp stream_loop(acc, timeout) do
     receive do
-      %HTTPoison.AsyncStatus{ id: id, code: 200 } -> stream_loop(acc)
-      %HTTPoison.AsyncHeaders{headers: _, id: id} -> stream_loop(acc)
+      %HTTPoison.AsyncStatus{ id: id, code: 200 } -> stream_loop(acc, timeout)
+      %HTTPoison.AsyncHeaders{headers: _, id: id} -> stream_loop(acc, timeout)
       %HTTPoison.AsyncChunk{id: id, chunk: chk} -> 
       IO.inspect Poison.decode!(chk)
       case String.printable?(chk) do
         true -> 
-            stream_loop([Poison.decode!(chk)|acc])
+            stream_loop([Poison.decode!(chk)|acc], timeout)
         _    -> 
-            stream_loop(acc) #<<stream_type::8, 0, 0, 0, size1::8, size2::8, size3::8, size4::8, rest::binary >> = chk
+            stream_loop(acc, timeout) #<<stream_type::8, 0, 0, 0, size1::8, size2::8, size3::8, size4::8, rest::binary >> = chk
       end
       %HTTPoison.AsyncEnd{id: id} ->
         stream_loop(acc, :done)
