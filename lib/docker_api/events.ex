@@ -19,8 +19,9 @@ defmodule DockerApi.Events do
   """
   def all(host, opts) when is_binary(host) do
     url = url(host, opts[:query_params])
+    timeout = Map.get(opts, :timeout, 10_000)
     {:ok, %HTTPoison.AsyncResponse{id: id}} = HTTPoison.get url, %{}, stream_to: self
-    {:ok, stream_loop([]) |> Enum.reverse }
+    {:ok, stream_loop([], timeout) |> Enum.reverse }
   end
 
   defp url(host, %{}) do
@@ -32,7 +33,7 @@ defmodule DockerApi.Events do
   end
 
   defp stream_loop(acc, :done), do: acc
-  defp stream_loop(acc) do
+  defp stream_loop(acc, timeout) do
     receive do
       %HTTPoison.AsyncStatus{ id: id, code: 200 } -> stream_loop(acc)
       %HTTPoison.AsyncHeaders{headers: _, id: id} -> stream_loop(acc)
@@ -47,7 +48,7 @@ defmodule DockerApi.Events do
       %HTTPoison.AsyncEnd{id: id} ->
         stream_loop(acc, :done)
     after
-      10_000 -> 
+      timeout -> 
       IO.puts "Timeout waiting for stream"
       acc
     end
