@@ -20,8 +20,9 @@ defmodule DockerApi.Events do
   def all(host, opts) when is_binary(host) do
     url = url(host, opts[:query_params])
     timeout = Map.get(opts, :timeout, 10_000)
+    event_handler = Map.get(opts, :event_handler, fn(x) -> IO.inspect x end)
     {:ok, %HTTPoison.AsyncResponse{id: id}} = HTTPoison.get url, %{}, stream_to: self
-    {:ok, stream_loop([], timeout) |> Enum.reverse }
+    {:ok, stream_loop([], timeout, event_handler) |> Enum.reverse }
   end
 
   defp url(host, %{}) do
@@ -33,17 +34,17 @@ defmodule DockerApi.Events do
   end
 
   defp stream_loop(acc, :done), do: acc
-  defp stream_loop(acc, timeout) do
+  defp stream_loop(acc, timeout, event_handler) do
     receive do
-      %HTTPoison.AsyncStatus{ id: id, code: 200 } -> stream_loop(acc, timeout)
-      %HTTPoison.AsyncHeaders{headers: _, id: id} -> stream_loop(acc, timeout)
+      %HTTPoison.AsyncStatus{ id: id, code: 200 } -> stream_loop(acc, timeout, event_handler)
+      %HTTPoison.AsyncHeaders{headers: _, id: id} -> stream_loop(acc, timeout, event_handler)
       %HTTPoison.AsyncChunk{id: id, chunk: chk} -> 
-      IO.inspect Poison.decode!(chk)
+      event_handler.(Poison.decode!(chk))
       case String.printable?(chk) do
         true -> 
-            stream_loop([Poison.decode!(chk)|acc], timeout)
+            stream_loop([Poison.decode!(chk)|acc], timeout, event_handler)
         _    -> 
-            stream_loop(acc, timeout) #<<stream_type::8, 0, 0, 0, size1::8, size2::8, size3::8, size4::8, rest::binary >> = chk
+            stream_loop(acc, timeout, event_handler) #<<stream_type::8, 0, 0, 0, size1::8, size2::8, size3::8, size4::8, rest::binary >> = chk
       end
       %HTTPoison.AsyncEnd{id: id} ->
         stream_loop(acc, :done)
